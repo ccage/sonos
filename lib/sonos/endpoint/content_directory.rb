@@ -7,6 +7,9 @@ module Sonos::Endpoint::ContentDirectory
     name = 'Browse'
     action = "#{CONTENT_DIRECTORY_XMLNS}##{name}"
     message = %Q{<u:#{name} xmlns:u="#{CONTENT_DIRECTORY_XMLNS}"><ObjectID>Q:0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>dc:title,res,dc:creator,upnp:artist,upnp:album,upnp:albumArtURI</Filter><StartingIndex>#{starting_index}</StartingIndex><RequestedCount>#{requested_count}</RequestedCount><SortCriteria></SortCriteria></u:Browse>}
+
+    #puts "message: #{message}"
+
     result = content_directory_client.call name, soap_action: action, message: message
     body = result.body[:browse_response]
 
@@ -17,16 +20,81 @@ module Sonos::Endpoint::ContentDirectory
 
     # Paginate
     # TODO: This is ugly and inflexible
-    if starting_index == 0
-      start = starting_index
-      while hash[:items].count < hash[:total]
-        start += requested_count
-        hash[:items] += browse(start, requested_count)[:items]
-      end
+    # if starting_index == 0
+    #   start = starting_index
+    #   while hash[:items].count < hash[:total]
+    #     start += requested_count
+    #     hash[:items] += browse(start, requested_count)[:items]
+    #   end
+    # end
+
+    hash
+  end
+
+
+  def playlists(starting_index = 0, requested_count = 100)
+
+    name = 'Browse'
+    action = "#{CONTENT_DIRECTORY_XMLNS}##{name}"
+
+    message = %Q{<u:#{name} xmlns:u="#{CONTENT_DIRECTORY_XMLNS}">\
+              <ObjectID>SQ:</ObjectID>
+              <BrowseFlag>BrowseDirectChildren</BrowseFlag>\
+              <Filter></Filter>\
+              <StartingIndex>#{starting_index}</StartingIndex>\
+              <RequestedCount>#{requested_count}</RequestedCount>\
+              <SortCriteria></SortCriteria></u:Browse>}
+
+    result = content_directory_client.call name, soap_action: action, message: message
+
+    body = result.body[:browse_response]
+
+    hash = {
+        total: body[:total_matches].to_i,
+        items: parse_playlists(body[:result])
+    }
+
+    hash
+  end
+
+
+  def playlist(playlistID, action, index)
+
+    name = 'Browse'
+    action = "#{CONTENT_DIRECTORY_XMLNS}##{name}"
+
+    maxPlaylistPagingResults = 100
+    starting_index = maxPlaylistPagingResults * (index)
+    requested_count = maxPlaylistPagingResults
+
+    message = %Q{<u:#{name} xmlns:u="#{CONTENT_DIRECTORY_XMLNS}">\
+              <ObjectID>#{playlistID}</ObjectID>
+              <BrowseFlag>BrowseDirectChildren</BrowseFlag>\
+              <Filter></Filter>\
+              <StartingIndex>#{starting_index}</StartingIndex>\
+              <RequestedCount>#{requested_count}</RequestedCount>\
+              <SortCriteria></SortCriteria></u:Browse>}
+
+    result = content_directory_client.call name, soap_action: action, message: message
+
+    body = result.body[:browse_response]
+
+    hash = {
+        total: body[:total_matches].to_i,
+        items: parse_items(body[:result])
+    }
+
+    #puts "total_matches: #{body[:total_matches].to_i}, maxPlaylistPagingResults*(index+1): #{maxPlaylistPagingResults*(index+1)}"
+
+    if (body[:total_matches].to_i > maxPlaylistPagingResults*(index+1))
+      index += 1
+      innerHash = getplaylist(playlistID, action, index)
+      hash[:items].push(*innerHash[:items])
     end
 
     hash
   end
+
 
   private
 
@@ -36,6 +104,7 @@ module Sonos::Endpoint::ContentDirectory
 
   def parse_items(string)
     result = []
+
     doc = Nokogiri::XML(string)
     doc.css('item').each do |item|
       res = item.css('res').first
@@ -51,4 +120,19 @@ module Sonos::Endpoint::ContentDirectory
     end
     result
   end
+
+  def parse_playlists(string)
+    result = []
+
+    doc = Nokogiri::XML(string)
+    doc.css('container').each do |container|
+      result << {
+          title: container.xpath('dc:title').inner_text,
+          queue_id: container['id']
+      }
+    end
+    result
+  end
+
+
 end

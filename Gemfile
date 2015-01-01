@@ -6,3 +6,4 @@ gemspec
 # Development dependencies
 gem 'rake'
 gem 'yard'
+gem 'rspec'

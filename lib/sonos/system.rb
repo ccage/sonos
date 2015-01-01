@@ -47,9 +47,12 @@ module Sonos
 
     def find_party_master
       # 1: If there are any pre-existing groups playing something, use
-      # the lowest-numbered group's master
+      # the lowest-numbered group's master. But ensure to only check a
+      # master_speaker that is actually a speaker, and not an Accessory.
       groups.each do |group|
-        return group.master_speaker if group.master_speaker.has_music?
+        if group.master_speaker.speaker? and group.master_speaker.has_music?
+          return group.master_speaker
+        end
       end
 
       # 2: Lowest-number speaker that's playing something
@@ -60,18 +63,18 @@ module Sonos
       # 3: lowest-numbered speaker
       speakers[0]
     end
-    
+
     # Party's over :(
     def party_over
       groups.each { |g| g.disband }
       rescan @topology
     end
-    
+
     def rescan(topology = Discovery.new.topology)
       @topology = topology
       @groups = []
       @devices = @topology.collect(&:device)
-      
+
       construct_groups
 
       speakers.each do |speaker|
@@ -102,6 +105,9 @@ module Sonos
           master = node if node.coordinator == "true"
         end
 
+        # Skip this group if there is no master
+        next if master.nil?
+
         # register other nodes in groups as slave nodes
         nodes = []
         @topology.each do |node|
@@ -109,9 +115,6 @@ module Sonos
           next unless node.group == group_uid
           nodes << node unless node.uuid == master.uuid
         end
-
-        # Skip this group if there is no master
-        next if master.nil?
 
         # Add the group
         @groups << Group.new(master.device, nodes.collect(&:device))

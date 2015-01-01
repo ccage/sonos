@@ -59,6 +59,7 @@ speaker.add_to_queue 'http://assets.samsoff.es/music/Airports.mp3'
 speaker.remove_from_queue(speaker.queue[:items].last[:queue_id])
 speaker.save_queue 'Jams'
 speaker.clear_queue
+speaker.set_sleep_timer '00:13:00'
 ```
 
 Or go into what the official control from Sonos, Inc. calls "Party
@@ -74,6 +75,38 @@ system.party_over
 `Sonos.discover` finds the first speaker it can. We can get all of the Sonos devices (including Bridges, etc) by calling `Sonos.system.devices`. To get the groups, call `Sonos.system.groups`.
 
 All of this is based off of the raw `Sonos.system.topology`.
+
+### Services
+
+Currently there is support to queue items from the following services, provided
+the service accounts are set up:
+
+- Spotify
+  - tracks
+  - albums
+  - playlists
+  - top lists
+  - starred
+- Rdio
+  - tracks
+  - albums
+
+The way to add items differs per service at moment:
+
+For Spotify only the 'Spotify URI' is required:
+
+``` ruby
+speaker.add_spotify_to_queue('2CwulIyrmEYwbUWzcEVIhR')
+```
+
+Whereas for Rdio more information needs to be provided:
+
+``` ruby
+speaker.add_rdio_to_queue({
+  :track => '42083055',
+  :album => '3944937',
+  :username => 'RDIO_USERNAME_HERE' })
+```
 
 ### CLI
 
@@ -91,6 +124,7 @@ You can also run `sonos pause_all` to pause all your Sonos groups.
 * Detect stereo pair
 * CLI client for everything
 * Nonblocking calls with Celluloid::IO
+* Unified method of adding items from music services
 
 ### Features
 
@@ -98,14 +132,10 @@ You can also run `sonos pause_all` to pause all your Sonos groups.
 * Pause all (there is no play all in the controller, we could loop through and do it though)
 * Party Mode
 * Line-in
-* Toggle cross fade
-* Toggle shuffle
-* Set repeat mode
 * Search music library
 * Browse music library
 * Skip to song in queue
 * Alarm clock
-* Sleep timer
 * Pandora doesn't use the Queue. I bet things are all jacked up.
 * CONNECT (and possibly PLAY:5) line in settings
     * Source name
@@ -118,7 +148,6 @@ You can also run `sonos pause_all` to pause all your Sonos groups.
 If we are implementing everything the official Sonos Controller does, here's some more stuff:
 
 * Set zone name and icon
-* Create stero pair
 * Support for SUB
 * Support for DOCK
 * Support for CONNECT:AMP (not sure if this is any different from CONNECT)
